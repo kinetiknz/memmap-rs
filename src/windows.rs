@@ -59,18 +59,19 @@ impl MmapInner {
                 (aligned_offset & 0xffffffff) as DWORD,
                 aligned_len as SIZE_T,
             );
+            if ptr == ptr::null_mut() {
+                let e = io::Error::last_os_error();
+                CloseHandle(handle);
+                return Err(e);
+            }
             CloseHandle(handle);
 
-            if ptr == ptr::null_mut() {
-                Err(io::Error::last_os_error())
-            } else {
-                Ok(MmapInner {
-                    file: Some(file.try_clone()?),
-                    ptr: ptr.offset(alignment as isize),
-                    len: len as usize,
-                    copy: copy,
-                })
-            }
+            Ok(MmapInner {
+                file: Some(file.try_clone()?),
+                ptr: ptr.offset(alignment as isize),
+                len: len as usize,
+                copy: copy,
+            })
         }
     }
 
@@ -172,11 +173,12 @@ impl MmapInner {
             }
             let access = FILE_MAP_ALL_ACCESS | FILE_MAP_EXECUTE;
             let ptr = MapViewOfFile(handle, access, 0, 0, len as SIZE_T);
-            CloseHandle(handle);
-
             if ptr == ptr::null_mut() {
-                return Err(io::Error::last_os_error());
+                let e = io::Error::last_os_error();
+                CloseHandle(handle);
+                return Err(e);
             }
+            CloseHandle(handle);
 
             let mut old = 0;
             let result = VirtualProtect(ptr, len as SIZE_T, PAGE_READWRITE, &mut old);
